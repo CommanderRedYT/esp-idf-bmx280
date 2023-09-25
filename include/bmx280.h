@@ -16,8 +16,11 @@ extern "C" {
 
 #include <stdint.h>
 #include <limits.h>
+#include <math.h>
 #include "driver/i2c.h"
 #include "sdkconfig.h"
+
+#define SEA_LEVEL_PRESSURE_HPA 1013.25f
 
 #define BMXAPI extern
 
@@ -89,7 +92,7 @@ BMXAPI esp_err_t bmx280_readout(bmx280_t *bmx280, int32_t *temperature, uint32_t
  * @param pout Output pressure. (Pa)
  * @param hout Output humidity. (%Rh)
  */
-static inline void bmx280_readout2float(int32_t* tin, uint32_t *pin, uint32_t *hin, float *tout, float *pout, float *hout)
+static inline void bmx280_readout2float(int32_t* tin, uint32_t *pin, uint32_t *hin, float *tout, float *pout, float *hout, float *aout)
 {
     if (tin && tout)
         *tout = (float)*tin * 0.01f;
@@ -97,6 +100,10 @@ static inline void bmx280_readout2float(int32_t* tin, uint32_t *pin, uint32_t *h
         *pout = (float)*pin * (1.0f/256.0f);
     if (hin && hout)
         *hout = (*hin == UINT32_MAX) ? -1.0f : (float)*hin * (1.0f/1024.0f);
+    if (pin && aout)
+    {
+        *aout = 44330.0f * (1.0f - powf(*pout / 100.f / SEA_LEVEL_PRESSURE_HPA, 0.1903f));
+    }
 }
 
 /**
@@ -106,14 +113,14 @@ static inline void bmx280_readout2float(int32_t* tin, uint32_t *pin, uint32_t *h
  * @param pressure The pressure in Pa.
  * @param humidity The humidity in %RH.
  */
-static inline esp_err_t bmx280_readoutFloat(bmx280_t *bmx280, float* temperature, float* pressure, float* humidity)
+static inline esp_err_t bmx280_readoutFloat(bmx280_t *bmx280, float* temperature, float* pressure, float* humidity, float* altitude)
 {
     int32_t t; uint32_t p, h;
     esp_err_t err = bmx280_readout(bmx280, &t, &p, &h);
 
     if (err == ESP_OK)
     {
-        bmx280_readout2float(&t, &p, &h, temperature, pressure, humidity);
+        bmx280_readout2float(&t, &p, &h, temperature, pressure, humidity, altitude);
     }
 
     return err;
